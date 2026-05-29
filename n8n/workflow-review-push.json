@@ -1,0 +1,8 @@
+{
+  "name": "IG Review Push",
+  "nodes": [
+    {"parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 30}]}}, "id": "Cron", "name": "Cron", "type": "n8n-nodes-base.cron", "typeVersion": 1, "position": [300, 300]},
+    {"parameters": {"url": "http://localhost:8788/review/push", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "x-telegram-control-token", "value": "={{$env.TELEGRAM_CONTROL_TOKEN || ''}}"}]}, "options": {}}, "id": "HTTP", "name": "Trigger Push", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [520, 300]}
+  ],
+  "connections": {"Cron": {"main": [[{"node": "Trigger Push", "type": "main", "index": 0}]]}}
+}

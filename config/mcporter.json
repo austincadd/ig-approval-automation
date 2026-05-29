@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "ig-looter": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.rapidapi.com/",
+        "--header",
+        "x-api-host: instagram-looter2.p.rapidapi.com",
+        "--header",
+        "x-api-key: ${RAPIDAPI_KEY}"
+      ]
+    },
+    "flashapi": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.rapidapi.com/",
+        "--header",
+        "x-api-host: flashapi1.p.rapidapi.com",
+        "--header",
+        "x-api-key: ${RAPIDAPI_KEY}"
+      ]
+    },
+    "ig-approval-mcp": {
+      "baseUrl": "http://127.0.0.1:8789/mcp"
+    }
+  },
+  "imports": []
+}
