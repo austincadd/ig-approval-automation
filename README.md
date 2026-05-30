@@ -10,6 +10,14 @@ Approval-first local Instagram automation with a Telegram operator loop, a singl
 - Surfaces operator health through JSON, Telegram, MCP, and an HTML dashboard.
 - Tracks incidents, stall detection, auto-remediation attempts, and escalation state.
 
+## At a glance
+
+- Operator runbook: [`OPERATIONS.md`](./OPERATIONS.md)
+- Local setup: [Quick start](#quick-start)
+- Incident model: [Incidents](#incidents)
+- Recovery policy: [Auto-remediation](#auto-remediation)
+- Validation sweep: [Validation](#validation)
+
 ## Quick start
 
 ```bash
