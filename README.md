@@ -1,10 +1,14 @@
 # IG Approval Automation (Experimental)
 
-Approval-first pipeline:
-1. Add candidate IG post URLs
-2. Review/approve in Telegram
-3. Worker processes approved jobs one-by-one
-4. Logs every result + safety stop on challenge/block signals
+Approval-first local Instagram automation with a Telegram operator loop, a single-worker execution model, persisted run history, and Phase 5 incident management.
+
+## What this repo does
+
+- Queues Instagram post candidates for human review.
+- Sends approval/recovery/operator controls through Telegram.
+- Runs a bounded single-worker pipeline with safety stops.
+- Surfaces operator health through JSON, Telegram, MCP, and an HTML dashboard.
+- Tracks incidents, stall detection, auto-remediation attempts, and escalation state.
 
 ## Quick start
 
@@ -71,6 +75,21 @@ Read-only status surfaces:
 - Self-test JSON: `GET /automation/self-tests`
 - Incident JSON: `GET /automation/incidents` (control-plane auth required)
 - MCP: `automation_status`
+
+## Validation
+
+Core Phase 5 validation sweep:
+
+```bash
+npm run validate:incidents
+npm run validate:stall-detection
+npm run validate:auto-remediation
+npm run validate:escalation
+npm run validate:automation-status
+npm run validate:operator-dashboard
+npm run validate:self-tests
+npm run validate:control-plane-seams
+```
 
 ## Incidents
 
