@@ -98,6 +98,34 @@ if (!db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='inc
 ensureColumn('incident_notifications', 'payload_json', 'TEXT');
 db.exec(`CREATE INDEX IF NOT EXISTS idx_incident_notifications_incident_sent_at ON incident_notifications(incident_key, sent_at DESC)`);
 
+if (!db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='executor_owners'`).get()) {
+  db.exec(`
+    CREATE TABLE executor_owners (
+      owner_key TEXT PRIMARY KEY,
+      mode TEXT NOT NULL,
+      pid INTEGER,
+      profile_dir TEXT NOT NULL,
+      state TEXT NOT NULL CHECK(state IN ('active','released','stale','reclaimed','blocked')) DEFAULT 'active',
+      started_at TEXT NOT NULL,
+      heartbeat_at TEXT NOT NULL,
+      released_at TEXT,
+      reclaimed_at TEXT,
+      details_json TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+}
+ensureColumn('executor_owners', 'pid', 'INTEGER');
+ensureColumn('executor_owners', 'profile_dir', "TEXT NOT NULL DEFAULT '.browser-profile'");
+ensureColumn('executor_owners', 'state', "TEXT NOT NULL DEFAULT 'active'");
+ensureColumn('executor_owners', 'started_at', 'TEXT');
+ensureColumn('executor_owners', 'heartbeat_at', 'TEXT');
+ensureColumn('executor_owners', 'released_at', 'TEXT');
+ensureColumn('executor_owners', 'reclaimed_at', 'TEXT');
+ensureColumn('executor_owners', 'details_json', 'TEXT');
+ensureColumn('executor_owners', 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now'))");
+db.exec(`CREATE INDEX IF NOT EXISTS idx_executor_owners_state_heartbeat ON executor_owners(state, heartbeat_at DESC)`);
+
 const dedupeApprovalsTx = db.transaction(() => {
   const duplicates = db.prepare(`
     SELECT candidate_id, COUNT(*) AS count

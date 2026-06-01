@@ -22,6 +22,7 @@
     "validate:telegram-result-reporting": "node scripts/validate-telegram-result-reporting.js",
     "validate:worker-loop": "node scripts/validate-worker-loop.js",
     "validate:worker-preflight-before-claim": "node scripts/validate-worker-preflight-before-claim.js",
+    "validate:browser-profile-lock": "node scripts/validate-browser-profile-lock.js",
     "validate:callback-responsiveness": "node scripts/validate-callback-responsiveness.js",
     "validate:callback-server-composition": "node scripts/validate-callback-server-composition.js",
     "validate:automation-status": "node scripts/validate-automation-status.js",
@@ -70,6 +71,10 @@
     "validate:slo": "node scripts/validate-slo.js",
     "validate:session-recovery": "node scripts/validate-session-recovery.js",
     "validate:session-heuristics": "node scripts/validate-session-heuristics.js",
+    "validate:executor-ownership": "node scripts/validate-executor-ownership.js",
+    "validate:executor-surfaces": "node scripts/validate-executor-surfaces.js",
+    "validate:executor-runtime-phase9": "node scripts/validate-executor-runtime-phase9.js",
+    "validate:executor-interrupted-recovery": "node scripts/validate-executor-interrupted-recovery.js",
     "report:soak": "node scripts/report-soak.js"
   },
   "dependencies": {

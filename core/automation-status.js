@@ -12,6 +12,7 @@ import { detectQueueStall } from './stall-detection.js';
 import { evaluateReadiness, formatReadiness } from './readiness.js';
 import { getSoakReport } from './soak-report.js';
 import { evaluateSlo } from './slo-policy.js';
+import { evaluateExecutorOwner } from './executor-ownership.js';
 
 function toPositiveInteger(value) {
   const n = Number(value);
@@ -511,6 +512,7 @@ export function getOperatorAutomationStatus(db, options = {}) {
     }
   };
   const readiness = evaluateReadiness(db, statusSnapshot, options);
+  const executorOwner = evaluateExecutorOwner(db, { ownerKey: 'browser-profile' });
   const soak = getSoakReport(db, { days: options.soakWindowDays || 7 });
   const slo = evaluateSlo({ ...statusSnapshot, readiness }, soak, options);
 
@@ -533,6 +535,7 @@ export function getOperatorAutomationStatus(db, options = {}) {
       active: activeIncidents
     },
     readiness,
+    executorOwner,
     soak,
     slo
   };
@@ -548,6 +551,7 @@ export function formatOperatorAutomationStatus(status) {
   const blockerLine = `Current blockers: ${status.activeBlockerCount} | Historical blocked: ${status.historicalBlockedCount}`;
   const incidentLine = `Incidents: active=${status.incidents?.summary?.totalActive ?? 0} critical=${status.incidents?.summary?.bySeverity?.critical ?? 0} warn=${status.incidents?.summary?.bySeverity?.warn ?? 0}`;
   const readinessLine = status.readiness ? formatReadiness(status.readiness) : null;
+  const executorLine = status.executorOwner ? `Executor owner: ${status.executorOwner.state} | mode=${status.executorOwner.owner?.mode || 'none'} pid=${status.executorOwner.owner?.pid || 'n/a'}` : null;
   const sloLine = status.slo ? `SLO: ${status.slo.state} | violations=${status.slo.violations.length}` : null;
   const soakLine = status.soak ? `Soak(${status.soak.windowDays}d): recoverySuccess=${status.soak.summary.autoRecoverySuccessRate ?? 'n/a'} readinessBlocks=${status.soak.summary.readinessBlocks ?? 0} maxQueueAgeMin=${status.soak.summary.maxQueuedAgeMinutes ?? 0}` : null;
 
@@ -567,6 +571,7 @@ export function formatOperatorAutomationStatus(status) {
     queueLine,
     incidentLine,
     readinessLine,
+    executorLine,
     sloLine,
     soakLine,
     blockerLine,

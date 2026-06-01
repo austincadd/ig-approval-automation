@@ -2,57 +2,30 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { CHALLENGE_SELECTORS, detectChallengeFromSignals } from '../worker/safety.js';
+import { acquireExecutorOwner, heartbeatExecutorOwner, releaseExecutorOwner } from './executor-ownership.js';
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+const SINGLETON_FILES = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+const OPENCLAW_LOCK_FILE = '.openclaw-profile.lock.json';
+
+function singletonPath(profileDir, name) {
+  return path.resolve(profileDir, name);
 }
 
-function readVisiblePageText(page) {
-  return page.evaluate(() => document.body?.innerText || '').catch(() => '');
+function openclawLockPath(profileDir) {
+  return path.resolve(profileDir, OPENCLAW_LOCK_FILE);
 }
 
-async function getChallengeSelectorHits(page) {
-  const hits = [];
-  for (const selector of CHALLENGE_SELECTORS) {
-    const count = await page.locator(selector).count().catch(() => 0);
-    if (count > 0) hits.push(selector);
-  }
-  return hits;
+function lockFileExists(profileDir) {
+  return SINGLETON_FILES.some((name) => fs.existsSync(singletonPath(profileDir, name)));
 }
 
-async function detectSessionChallenge(page) {
-  const url = page.url();
-  const [visibleText, selectorHits] = await Promise.all([
-    readVisiblePageText(page),
-    getChallengeSelectorHits(page)
-  ]);
-
-  return detectChallengeFromSignals({ url, visibleText, selectorHits });
-}
-
-function readLockMetadata(lockFile) {
+function readOpenclawLock(profileDir) {
   try {
-    return JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+    const raw = fs.readFileSync(openclawLockPath(profileDir), 'utf8');
+    return JSON.parse(raw);
   } catch {
     return null;
   }
-}
-
-function pidLooksAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function clearStaleLock(lockDir, metadata) {
-  const pidAlive = pidLooksAlive(Number(metadata?.pid));
-  if (pidAlive) return false;
-  fs.rmSync(lockDir, { recursive: true, force: true });
-  return true;
 }
 
 export async function acquireBrowserProfileLock({
@@ -61,54 +34,82 @@ export async function acquireBrowserProfileLock({
   timeoutMs = 0,
   pollMs = 250
 } = {}) {
-  const resolvedProfileDir = path.resolve(profileDir || '.browser-profile');
-  const lockDir = `${resolvedProfileDir}.lock`;
-  const lockFile = path.join(lockDir, 'owner.json');
   const startedAt = Date.now();
+  const profilePath = path.resolve(profileDir || '.browser-profile');
+  fs.mkdirSync(profilePath, { recursive: true });
+  const normalizedOwner = owner || `pid:${process.pid}`;
 
   while (true) {
-    try {
-      fs.mkdirSync(lockDir, { recursive: false });
-      const metadata = {
-        owner: owner || 'unknown',
-        pid: process.pid,
-        acquiredAt: new Date().toISOString(),
-        profileDir: resolvedProfileDir
-      };
-      fs.writeFileSync(lockFile, JSON.stringify(metadata, null, 2));
-      return {
-        profileDir: resolvedProfileDir,
-        lockDir,
-        lockFile,
-        metadata,
-        release() {
-          fs.rmSync(lockDir, { recursive: true, force: true });
-        }
-      };
-    } catch (err) {
-      if (err?.code !== 'EEXIST') throw err;
-      const metadata = readLockMetadata(lockFile);
-      const cleared = clearStaleLock(lockDir, metadata);
-      if (cleared) continue;
-
-      if (Date.now() - startedAt >= timeoutMs) {
-        const lockError = new Error(`Browser profile is busy (${metadata?.owner || 'unknown owner'}).`);
-        lockError.code = 'BROWSER_PROFILE_LOCKED';
-        lockError.lockOwner = metadata?.owner || null;
-        lockError.lockPid = metadata?.pid || null;
-        lockError.lockAcquiredAt = metadata?.acquiredAt || null;
-        throw lockError;
+    const existingOpenclawLock = readOpenclawLock(profilePath);
+    if (existingOpenclawLock && existingOpenclawLock.owner !== normalizedOwner) {
+      if ((Date.now() - startedAt) > timeoutMs) {
+        const err = new Error('Browser profile already locked by another OpenClaw owner');
+        err.code = 'BROWSER_PROFILE_LOCKED';
+        err.profileDir = profilePath;
+        err.lockOwner = existingOpenclawLock.owner;
+        throw err;
       }
-
-      await sleep(pollMs);
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+      continue;
     }
+
+    if (lockFileExists(profilePath)) {
+      if ((Date.now() - startedAt) > timeoutMs) {
+        const err = new Error('Browser profile busy');
+        err.code = 'BROWSER_PROFILE_BUSY';
+        err.profileDir = profilePath;
+        err.owner = normalizedOwner;
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+      continue;
+    }
+
+    fs.writeFileSync(openclawLockPath(profilePath), JSON.stringify({ owner: normalizedOwner, pid: process.pid, createdAt: new Date().toISOString() }));
+    break;
   }
+
+  return {
+    profileDir: profilePath,
+    owner: normalizedOwner,
+    release() {
+      try {
+        const current = readOpenclawLock(profilePath);
+        if (!current || current.owner === normalizedOwner) fs.rmSync(openclawLockPath(profilePath), { force: true });
+      } catch {}
+      return true;
+    }
+  };
+}
+
+export async function detectSessionChallenge(page) {
+  try {
+    const loginFormCount = await page.locator('form[action*="/accounts/login"]').count();
+    if (loginFormCount > 0) {
+      return {
+        blocked: true,
+        reason: 'CHALLENGE_SELECTOR',
+        detail: 'login_form_present'
+      };
+    }
+  } catch {}
+
+  const signals = await detectChallengeFromSignals(page, CHALLENGE_SELECTORS);
+  if (signals.challenge) {
+    return {
+      blocked: true,
+      reason: signals.reason || 'challenge_detected',
+      detail: signals.detail || null
+    };
+  }
+  return { blocked: false };
 }
 
 export async function launchBrowserSessionWithPreflight({
   chromium,
   profileDir,
   owner,
+  db = null,
   lockTimeoutMs = 0,
   lockPollMs = 250,
   headless = false,
@@ -121,6 +122,16 @@ export async function launchBrowserSessionWithPreflight({
     timeoutMs: lockTimeoutMs,
     pollMs: lockPollMs
   });
+
+  if (db) {
+    acquireExecutorOwner(db, {
+      ownerKey: 'browser-profile',
+      mode: owner || 'unknown',
+      pid: process.pid,
+      profileDir: lock.profileDir,
+      details: { lockOwner: owner || 'unknown' }
+    });
+  }
 
   let ctx;
   try {
@@ -138,9 +149,23 @@ export async function launchBrowserSessionWithPreflight({
       throw err;
     }
 
-    return { ctx, page, lock, preflightUrl: page.url() };
+    if (db) heartbeatExecutorOwner(db, { ownerKey: 'browser-profile', details: { preflightUrl: page.url() } });
+
+    return {
+      ctx,
+      page,
+      lock,
+      preflightUrl: page.url(),
+      heartbeat(details = {}) {
+        if (db) heartbeatExecutorOwner(db, { ownerKey: 'browser-profile', details });
+      },
+      releaseOwnership() {
+        if (db) releaseExecutorOwner(db, { ownerKey: 'browser-profile' });
+      }
+    };
   } catch (err) {
     try { await ctx?.close(); } catch {}
+    try { if (db) releaseExecutorOwner(db, { ownerKey: 'browser-profile' }); } catch {}
     try { lock.release(); } catch {}
     throw err;
   }

@@ -164,6 +164,19 @@ function renderPolicyVersions(policyVersions) {
   `).join('')}</tbody></table>`;
 }
 
+function renderExecutorOwner(executorOwner) {
+  if (!executorOwner) return '<p class="empty">No executor ownership data.</p>';
+  const owner = executorOwner.owner;
+  return `<div class="card stack compact">
+    <div>state: ${badge(executorOwner.state || 'unknown', toneForHealth(executorOwner.state))}</div>
+    <div>mode: ${escapeHtml(owner?.mode || '—')}</div>
+    <div>pid: ${escapeHtml(owner?.pid || '—')}</div>
+    <div>heartbeat: ${escapeHtml(owner?.heartbeatAt || '—')}</div>
+    <div>released: ${escapeHtml(owner?.releasedAt || '—')}</div>
+    <div>reclaimable: ${escapeHtml(executorOwner.reclaimable)}</div>
+  </div>`;
+}
+
 function renderSlo(slo) {
   if (!slo) return '<p class="empty">No SLO evaluation yet.</p>';
   return `<div class="card stack compact"><div>state: ${badge(slo.state || 'unknown', toneForHealth(slo.state))}</div><div>violations: ${escapeHtml(slo.violations?.length ?? 0)}</div>${slo.violations?.length ? `<ul>${slo.violations.map((v) => `<li><strong>${escapeHtml(v.key)}</strong> actual=${escapeHtml(v.actual)} target=${escapeHtml(v.target)}</li>`).join('')}</ul>` : '<p class="empty">No current violations.</p>'}</div>`;
@@ -265,6 +278,9 @@ export function renderOperatorDashboard(status, options = {}) {
     <h2>Readiness</h2>
     ${renderReadiness(status.readiness)}
 
+    <h2>Executor owner</h2>
+    ${renderExecutorOwner(status.executorOwner)}
+
     <h2>Operator actions</h2>
     <div class="action-grid">
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="pause" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Pause automation</button><div class="action-note">Stops new worker execution by flipping the DB flag off.</div></form></div>
@@ -275,6 +291,7 @@ export function renderOperatorDashboard(status, options = {}) {
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="ack_session_challenge" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Acknowledge challenge</button><div class="action-note">Marks the challenge as seen and puts session trust into pending revalidation.</div></form></div>
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="ack_session_recovery" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Acknowledge recovery</button><div class="action-note">Records that you completed recovery steps, but keeps the session quarantined until revalidation succeeds.</div></form></div>
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="mark_session_revalidated" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Mark session revalidated</button><div class="action-note">Clears quarantine only after you’ve verified the session is genuinely healthy again.</div></form></div>
+      <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="reclaim_executor_owner" /><button type="submit">Reclaim stale executor owner</button><div class="action-note">Only succeeds when the current executor owner is provably stale.</div></form></div>
     </div>
 
     <h2>Current blockers</h2>

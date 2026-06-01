@@ -153,6 +153,22 @@ CREATE TABLE IF NOT EXISTS incident_notifications (
 CREATE INDEX IF NOT EXISTS idx_incident_notifications_incident_sent_at
 ON incident_notifications(incident_key, sent_at DESC);
 
+CREATE TABLE IF NOT EXISTS executor_owners (
+  owner_key TEXT PRIMARY KEY,
+  mode TEXT NOT NULL,
+  pid INTEGER,
+  profile_dir TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('active','released','stale','reclaimed','blocked')) DEFAULT 'active',
+  started_at TEXT NOT NULL,
+  heartbeat_at TEXT NOT NULL,
+  released_at TEXT,
+  reclaimed_at TEXT,
+  details_json TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_executor_owners_state_heartbeat
+ON executor_owners(state, heartbeat_at DESC);
+
 INSERT OR IGNORE INTO system_flags(key, value) VALUES
 ('AUTOMATION_ENABLED', 'true'),
 ('DAILY_LIMIT', '10'),

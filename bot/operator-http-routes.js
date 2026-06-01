@@ -52,6 +52,8 @@ function runOperatorAction(db, input = {}) {
     case 'mark_session_revalidated':
       markSessionRevalidated(db, { reason, metadata: { actor: 'http:dashboard' } });
       return { ok: true, action: 'mark_session_revalidated' };
+    case 'reclaim_executor_owner':
+      return reclaimExecutorOwner(db, { ownerKey: 'browser-profile' });
     default:
       throw new Error(`Unsupported operator action: ${action}`);
   }
@@ -80,6 +82,11 @@ export function registerOperatorHttpRoutes({
     if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
     const status = getOperatorAutomationStatus(db);
     res.json({ ok: true, readiness: status.readiness, incidents: status.incidents?.summary, health: status.health });
+  });
+
+  app.get('/automation/executor', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
+    res.json({ ok: true, executorOwner: evaluateExecutorOwner(db, { ownerKey: 'browser-profile' }) });
   });
 
   app.get('/automation/soak', (req, res) => {
