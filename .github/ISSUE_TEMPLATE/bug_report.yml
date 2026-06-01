@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a defect in queueing, worker execution, operator surfaces, or incident handling.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps, commands, URLs, or operator actions that reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Relevant status/incident context
+      description: Include `/automation_status`, active incidents, or self-test results if relevant.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation signal
+      description: Which validation failed, if any?

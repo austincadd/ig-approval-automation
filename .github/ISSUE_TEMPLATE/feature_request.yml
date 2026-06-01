@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a focused improvement to operator controls, reliability, or automation behavior.
+title: "feature: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator or system problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Scope limits, safety requirements, or runtime constraints.
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Affected areas
+      options:
+        - label: Operator dashboard/status surfaces
+        - label: Incident detection/escalation
+        - label: Auto-remediation/recovery
+        - label: Telegram control plane
+        - label: Worker execution pipeline
