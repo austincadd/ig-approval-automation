@@ -43,6 +43,15 @@ function runOperatorAction(db, input = {}) {
         reason,
         candidateId: Number(input.candidateId)
       });
+    case 'ack_session_challenge':
+      acknowledgeSessionChallenge(db, { reason, metadata: { actor: 'http:dashboard' } });
+      return { ok: true, action: 'ack_session_challenge' };
+    case 'ack_session_recovery':
+      acknowledgeSessionRecovery(db, { reason, metadata: { actor: 'http:dashboard' } });
+      return { ok: true, action: 'ack_session_recovery' };
+    case 'mark_session_revalidated':
+      markSessionRevalidated(db, { reason, metadata: { actor: 'http:dashboard' } });
+      return { ok: true, action: 'mark_session_revalidated' };
     default:
       throw new Error(`Unsupported operator action: ${action}`);
   }
@@ -65,6 +74,18 @@ export function registerOperatorHttpRoutes({
   app.get('/automation/status', (_req, res) => {
     const status = getOperatorAutomationStatus(db);
     res.json({ ok: true, status });
+  });
+
+  app.get('/automation/readiness', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
+    const status = getOperatorAutomationStatus(db);
+    res.json({ ok: true, readiness: status.readiness, incidents: status.incidents?.summary, health: status.health });
+  });
+
+  app.get('/automation/soak', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
+    const status = getOperatorAutomationStatus(db, { soakWindowDays: Math.max(1, Math.trunc(Number(req.query?.days) || 7)) });
+    res.json({ ok: true, soak: status.soak, slo: status.slo });
   });
 
   app.get('/automation/incidents', (req, res) => {

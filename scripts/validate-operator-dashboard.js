@@ -50,11 +50,25 @@ assert.match(dashboardHtml, /Pause automation/);
 assert.match(dashboardHtml, /Recent failures/);
 assert.match(dashboardHtml, /Active incidents/);
 assert.match(dashboardHtml, /Telegram transport degraded: timeout/);
+assert.match(dashboardHtml, /Readiness/);
+assert.match(dashboardHtml, /trust:/);
+assert.match(dashboardHtml, /Acknowledge challenge/);
 assert.match(dashboardHtml, /Self-tests/);
 assert.match(dashboardHtml, /Policy versions/);
 
 const actionRoute = routes.find((entry) => entry.method === 'POST' && entry.route === '/automation/action');
 assert.ok(actionRoute, 'expected /automation/action route');
+const soakRoute = routes.find((entry) => entry.method === 'GET' && entry.route === '/automation/soak');
+assert.ok(soakRoute, 'expected /automation/soak route');
+let soakPayload = null;
+soakRoute.handler({ get: () => 'application/json', query: { days: '7' } }, {
+  json(value) { soakPayload = value; },
+  status(code) { this.statusCode = code; return this; }
+});
+assert.equal(soakPayload.ok, true);
+assert.ok(soakPayload.slo);
+assert.ok(soakPayload.soak);
+
 const incidentsRoute = routes.find((entry) => entry.method === 'GET' && entry.route === '/automation/incidents');
 assert.ok(incidentsRoute, 'expected /automation/incidents route');
 let incidentsPayload = null;

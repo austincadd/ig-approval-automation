@@ -18,15 +18,17 @@ const result = await runSelfTests(db, {
   pageShapeProbeUrl: 'https://www.instagram.com/'
 });
 
-assert.equal(result.results.length, 5);
+assert.equal(result.results.length, 8);
 const stored = readSelfTestResults(db);
-assert.equal(stored.length, 5);
+assert.equal(stored.length, 8);
 assert.ok(stored.some((row) => row.testKey === 'instagram_page_shape_probe' && row.status === 'skipped'));
 assert.ok(stored.some((row) => row.testKey === 'control_plane_http'));
+assert.ok(stored.some((row) => row.testKey === 'synthetic_operator_path' && row.status === 'ok'));
 
 const status = getOperatorAutomationStatus(db);
-assert.equal(status.selfTests.results.length, 5);
+assert.equal(status.selfTests.results.length, 8);
 assert.equal(status.policyVersions.schemaVersion, '2026-05-29.phase5');
+assert.equal(status.readiness.freshness.selfTestsFresh, true);
 assert.match(JSON.stringify(status.selfTests.summary), /overall/);
 
 console.log('Self-tests validation passed');

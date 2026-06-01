@@ -5,6 +5,7 @@ import { classifyPageShape } from '../worker/page-shape.js';
 import { readAccountSessionState } from './session-state.js';
 import { readExecutorCanaryResult } from './canary.js';
 import { getPolicyVersions } from './policy-versions.js';
+import { runSyntheticChecks } from './synthetic-checks.js';
 
 function safeJsonParse(value) {
   try { return value ? JSON.parse(value) : null; } catch { return null; }
@@ -182,6 +183,9 @@ export async function runSelfTests(db, options = {}) {
   ]) {
     results.push(writeResult(db, result));
   }
+
+  const synthetic = runSyntheticChecks(db, options);
+  for (const result of synthetic.results) results.push(result);
 
   const summary = summarizeSelfTests(readSelfTestResults(db));
   db.prepare(`

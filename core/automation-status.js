@@ -9,6 +9,9 @@ import { getPolicyVersions } from './policy-versions.js';
 import { readSelfTestResults, summarizeSelfTests } from './self-tests.js';
 import { getIncidentSummary, listActiveIncidents, openOrRefreshIncident, resolveIncident } from './incidents.js';
 import { detectQueueStall } from './stall-detection.js';
+import { evaluateReadiness, formatReadiness } from './readiness.js';
+import { getSoakReport } from './soak-report.js';
+import { evaluateSlo } from './slo-policy.js';
 
 function toPositiveInteger(value) {
   const n = Number(value);
@@ -488,8 +491,7 @@ export function getOperatorAutomationStatus(db, options = {}) {
 
   const activeIncidents = listActiveIncidents(db);
   const incidentSummary = getIncidentSummary(db);
-
-  return {
+  const statusSnapshot = {
     ...base,
     bot,
     worker,
@@ -508,6 +510,32 @@ export function getOperatorAutomationStatus(db, options = {}) {
       active: activeIncidents
     }
   };
+  const readiness = evaluateReadiness(db, statusSnapshot, options);
+  const soak = getSoakReport(db, { days: options.soakWindowDays || 7 });
+  const slo = evaluateSlo({ ...statusSnapshot, readiness }, soak, options);
+
+  return {
+    ...base,
+    bot,
+    worker,
+    telegramTransport: telegramHealth,
+    sessionState,
+    metrics,
+    policyVersions,
+    selfTests: {
+      summary: selfTestSummary,
+      results: selfTests
+    },
+    health,
+    recentTerminalFailures,
+    incidents: {
+      summary: incidentSummary,
+      active: activeIncidents
+    },
+    readiness,
+    soak,
+    slo
+  };
 }
 
 export function formatOperatorAutomationStatus(status) {
@@ -519,6 +547,9 @@ export function formatOperatorAutomationStatus(status) {
   const lastFailureLine = `Recent terminal failures: ${status.recentTerminalFailures.length}`;
   const blockerLine = `Current blockers: ${status.activeBlockerCount} | Historical blocked: ${status.historicalBlockedCount}`;
   const incidentLine = `Incidents: active=${status.incidents?.summary?.totalActive ?? 0} critical=${status.incidents?.summary?.bySeverity?.critical ?? 0} warn=${status.incidents?.summary?.bySeverity?.warn ?? 0}`;
+  const readinessLine = status.readiness ? formatReadiness(status.readiness) : null;
+  const sloLine = status.slo ? `SLO: ${status.slo.state} | violations=${status.slo.violations.length}` : null;
+  const soakLine = status.soak ? `Soak(${status.soak.windowDays}d): recoverySuccess=${status.soak.summary.autoRecoverySuccessRate ?? 'n/a'} readinessBlocks=${status.soak.summary.readinessBlocks ?? 0} maxQueueAgeMin=${status.soak.summary.maxQueuedAgeMinutes ?? 0}` : null;
 
   const failureLines = status.recentTerminalFailures.slice(0, 3).map((row) => {
     const code = row.errorCode || 'UNKNOWN';
@@ -535,6 +566,9 @@ export function formatOperatorAutomationStatus(status) {
     workerRunLine,
     queueLine,
     incidentLine,
+    readinessLine,
+    sloLine,
+    soakLine,
     blockerLine,
     `Pending approvals: ${status.pendingApprovals}`,
     driftLine,
@@ -543,7 +577,7 @@ export function formatOperatorAutomationStatus(status) {
     status.sessionState.lastLoginConfirmedAt ? `Last login confirmed: ${status.sessionState.lastLoginConfirmedAt}` : null,
     status.sessionState.lastChallengeAt ? `Last challenge: ${status.sessionState.lastChallengeAt}` : null,
     status.sessionState.lastSuccessfulActionAt ? `Last successful action: ${status.sessionState.lastSuccessfulActionAt}` : null,
-    status.metrics?.summary ? `SLO(7d): success=${status.metrics.summary.successRate ?? 'n/a'} selectorFail=${status.metrics.summary.selectorFailureRate ?? 'n/a'} verificationFail=${status.metrics.summary.verificationFailureRate ?? 'n/a'} challenge=${status.metrics.summary.challengeIncidenceRate ?? 'n/a'} deliveryDegraded=${status.metrics.summary.telegramDeliveryDegradationRate ?? 'n/a'} mttoiMin=${status.metrics.summary.meanTimeToOperatorInterventionMinutes ?? 'n/a'}` : null,
+    status.metrics?.summary ? `SLO(7d metrics): success=${status.metrics.summary.successRate ?? 'n/a'} selectorFail=${status.metrics.summary.selectorFailureRate ?? 'n/a'} verificationFail=${status.metrics.summary.verificationFailureRate ?? 'n/a'} challenge=${status.metrics.summary.challengeIncidenceRate ?? 'n/a'} deliveryDegraded=${status.metrics.summary.telegramDeliveryDegradationRate ?? 'n/a'} mttoiMin=${status.metrics.summary.meanTimeToOperatorInterventionMinutes ?? 'n/a'}` : null,
     status.selfTests?.summary ? `Self-tests: overall=${status.selfTests.summary.overall} total=${status.selfTests.summary.total} ok=${status.selfTests.summary.counts?.ok ?? 0} degraded=${status.selfTests.summary.counts?.degraded ?? 0} error=${status.selfTests.summary.counts?.error ?? 0} skipped=${status.selfTests.summary.counts?.skipped ?? 0}` : null,
     status.policyVersions ? `Policy versions: schema=${status.policyVersions.schemaVersion} selectors=${status.policyVersions.selectorStrategyVersion} failure=${status.policyVersions.failurePolicyVersion} retry=${status.policyVersions.retryPolicyVersion} suppression=${status.policyVersions.suppressionPolicyVersion} canary=${status.policyVersions.canaryPolicyVersion}` : null,
     lastFailureLine,

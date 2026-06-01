@@ -58,4 +58,25 @@ export function registerOperatorTelegramCommands({
     const result = reconcileApprovedQueue(db, { actor: getActorLabel(msg), reason });
     await bot.sendMessage(chatId, formatRecoverySummary('reconcileQueue', result));
   });
+
+  bot.onText(OPERATOR_TELEGRAM_COMMAND_PATTERNS.ackSessionChallenge, async (msg, match) => {
+    if (!requireAuthorizedChat(msg.chat.id)) return;
+    const reason = (match?.[1] || '').trim() || 'telegram_ack_session_challenge';
+    acknowledgeSessionChallenge(db, { reason, metadata: { actor: getActorLabel(msg) } });
+    await bot.sendMessage(chatId, 'Session challenge acknowledged. Trust is now pending revalidation.');
+  });
+
+  bot.onText(OPERATOR_TELEGRAM_COMMAND_PATTERNS.ackSessionRecovery, async (msg, match) => {
+    if (!requireAuthorizedChat(msg.chat.id)) return;
+    const reason = (match?.[1] || '').trim() || 'telegram_ack_session_recovery';
+    acknowledgeSessionRecovery(db, { reason, metadata: { actor: getActorLabel(msg) } });
+    await bot.sendMessage(chatId, 'Session recovery acknowledged. Quarantine remains until revalidation succeeds.');
+  });
+
+  bot.onText(OPERATOR_TELEGRAM_COMMAND_PATTERNS.markSessionRevalidated, async (msg, match) => {
+    if (!requireAuthorizedChat(msg.chat.id)) return;
+    const reason = (match?.[1] || '').trim() || 'telegram_mark_session_revalidated';
+    markSessionRevalidated(db, { reason, metadata: { actor: getActorLabel(msg) } });
+    await bot.sendMessage(chatId, 'Session marked revalidated. Trust restored and quarantine cleared.');
+  });
 }

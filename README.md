@@ -79,6 +79,8 @@ Phase 5 additions:
 Read-only status surfaces:
 - Telegram: `/automation_status`
 - Callback server JSON: `GET /automation/status`
+- Readiness JSON: `GET /automation/readiness` (control-plane auth required)
+- Soak/SLO JSON: `GET /automation/soak` (control-plane auth required)
 - Operator dashboard HTML: `GET /automation/dashboard`
 - Self-test JSON: `GET /automation/self-tests`
 - Incident JSON: `GET /automation/incidents` (control-plane auth required)
@@ -109,6 +111,12 @@ npm run validate:control-plane-seams
 
 - A queue stall is raised when queued jobs exist and the worker is dead, active progress is stale, or the last successful completion is too old with no recent useful progress.
 - Defaults are intentionally simple and bounded: `queueStallMinutes=15`, `workerStaleMinutes=10`, `progressStaleMinutes=10`.
+
+## Readiness
+
+- Execution now uses one authoritative readiness result before the worker claims work.
+- Readiness combines control-plane health, incident state, self-test freshness, canary/session trust, and account safety.
+- Inspect it through `GET /automation/readiness`, `/automation_status`, or the dashboard Readiness section.
 
 ## Auto-remediation
 
@@ -166,3 +174,13 @@ Notes about worker behavior:
 - System auto-pauses on checkpoint/challenge markers.
 - Recovery requeues create fresh queued jobs; blocked job history is preserved.
 - `/resume_automation` only flips the DB flag back on; the persistent LaunchAgent is what keeps the local worker running between sessions.
+ is what keeps the local worker running between sessions.
+ worker running between sessions.
+ntional policy between already-queued jobs. Fresh DB writes can wake the worker early, but a backlog that was already present still drains at the configured cooldown pace.
+
+## Notes
+- Use burner/test account only.
+- System auto-pauses on checkpoint/challenge markers.
+- Recovery requeues create fresh queued jobs; blocked job history is preserved.
+- `/resume_automation` only flips the DB flag back on; the persistent LaunchAgent is what keeps the local worker running between sessions.
+ is what keeps the local worker running between sessions.

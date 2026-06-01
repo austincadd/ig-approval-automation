@@ -125,6 +125,23 @@ function renderSelfTests(selfTests) {
   `).join('')}</tbody></table>`;
 }
 
+function renderReadiness(readiness) {
+  if (!readiness) return '<p class="empty">No readiness evaluation yet.</p>';
+  const renderList = (items = []) => items.length
+    ? `<ul>${items.map((item) => `<li><strong>${escapeHtml(item.code)}</strong> — ${escapeHtml(item.summary)}</li>`).join('')}</ul>`
+    : '<p class="empty">None.</p>';
+  return `
+    <div class="card stack compact">
+      <div>state: ${badge(readiness.state || 'unknown', toneForHealth(readiness.state))}</div>
+      <div>ok: ${escapeHtml(readiness.ok)}</div>
+      <div>evaluated: ${escapeHtml(readiness.evaluatedAt || '—')}</div>
+      <div>freshness: self-tests=${escapeHtml(readiness.freshness?.selfTestsFresh)} · canary=${escapeHtml(readiness.freshness?.canaryFresh)} · session=${escapeHtml(readiness.freshness?.sessionFresh)}</div>
+      <div><strong>Blocking reasons</strong>${renderList(readiness.blockingReasons)}</div>
+      <div><strong>Warnings</strong>${renderList(readiness.warnings)}</div>
+    </div>
+  `;
+}
+
 function renderIncidents(incidents = []) {
   if (!incidents.length) return '<p class="empty">No active incidents.</p>';
   return `<table><thead><tr><th>kind</th><th>severity</th><th>status</th><th>summary</th><th>started</th><th>last seen</th><th>auto recovery attempts</th></tr></thead><tbody>${incidents.map((incident) => `
@@ -145,6 +162,27 @@ function renderPolicyVersions(policyVersions) {
   return `<table><thead><tr><th>surface</th><th>version</th></tr></thead><tbody>${Object.entries(policyVersions).map(([key, value]) => `
     <tr><td>${escapeHtml(key)}</td><td>${code(value)}</td></tr>
   `).join('')}</tbody></table>`;
+}
+
+function renderSlo(slo) {
+  if (!slo) return '<p class="empty">No SLO evaluation yet.</p>';
+  return `<div class="card stack compact"><div>state: ${badge(slo.state || 'unknown', toneForHealth(slo.state))}</div><div>violations: ${escapeHtml(slo.violations?.length ?? 0)}</div>${slo.violations?.length ? `<ul>${slo.violations.map((v) => `<li><strong>${escapeHtml(v.key)}</strong> actual=${escapeHtml(v.actual)} target=${escapeHtml(v.target)}</li>`).join('')}</ul>` : '<p class="empty">No current violations.</p>'}</div>`;
+}
+
+function renderSoak(soak) {
+  if (!soak) return '<p class="empty">No soak report yet.</p>';
+  const summary = soak.summary || {};
+  return `<div class="card stack compact">
+    <div>window days: ${escapeHtml(soak.windowDays)}</div>
+    <div>success rate: ${escapeHtml(summary.successRate ?? 'n/a')}</div>
+    <div>auto recovery success rate: ${escapeHtml(summary.autoRecoverySuccessRate ?? 'n/a')}</div>
+    <div>critical incidents: ${escapeHtml(summary.criticalIncidents ?? 0)}</div>
+    <div>operator-required incidents: ${escapeHtml(summary.operatorRequiredIncidents ?? 0)}</div>
+    <div>readiness blocks: ${escapeHtml(summary.readinessBlocks ?? 0)}</div>
+    <div>max queued age (min): ${escapeHtml(summary.maxQueuedAgeMinutes ?? 0)}</div>
+    <div>degraded minutes: ${escapeHtml(summary.degradedMinutes ?? 0)}</div>
+    <div>control-plane stale minutes: ${escapeHtml(summary.controlPlaneStaleMinutes ?? 0)}</div>
+  </div>`;
 }
 
 export function renderOperatorDashboard(status, options = {}) {
@@ -224,6 +262,9 @@ export function renderOperatorDashboard(status, options = {}) {
     <h2>Canary</h2>
     <div class="card">${renderCanary(status.health?.canary)}</div>
 
+    <h2>Readiness</h2>
+    ${renderReadiness(status.readiness)}
+
     <h2>Operator actions</h2>
     <div class="action-grid">
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="pause" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Pause automation</button><div class="action-note">Stops new worker execution by flipping the DB flag off.</div></form></div>
@@ -231,6 +272,9 @@ export function renderOperatorDashboard(status, options = {}) {
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="requeue_blocked" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Requeue blocked</button><div class="action-note">Fresh queued jobs for currently blocked candidates, preserving history.</div></form></div>
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="reconcile_approved" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Reconcile approved</button><div class="action-note">Queues approved candidates that drifted out of active/success states.</div></form></div>
       <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="suppress_candidate" /><input name="candidateId" placeholder="candidate id" required /><input name="reason" placeholder="suppression reason" /><button type="submit">Suppress candidate</button><div class="action-note">Prevents recovery/requeue for one candidate.</div></form></div>
+      <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="ack_session_challenge" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Acknowledge challenge</button><div class="action-note">Marks the challenge as seen and puts session trust into pending revalidation.</div></form></div>
+      <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="ack_session_recovery" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Acknowledge recovery</button><div class="action-note">Records that you completed recovery steps, but keeps the session quarantined until revalidation succeeds.</div></form></div>
+      <div class="card"><form method="post" action="/automation/action"><input type="hidden" name="action" value="mark_session_revalidated" /><input name="reason" placeholder="reason (optional)" /><button type="submit">Mark session revalidated</button><div class="action-note">Clears quarantine only after you’ve verified the session is genuinely healthy again.</div></form></div>
     </div>
 
     <h2>Current blockers</h2>
@@ -249,9 +293,14 @@ export function renderOperatorDashboard(status, options = {}) {
     <div class="card stack compact">
       <div>session health: ${badge(status.sessionState?.sessionHealth || 'unknown', toneForHealth(status.sessionState?.sessionHealth))}</div>
       <div>quarantine: ${badge(status.sessionState?.quarantineState || 'unknown', toneForHealth(status.sessionState?.quarantineState))}</div>
+      <div>trust: ${badge(status.sessionState?.trustState || 'unknown', toneForHealth(status.sessionState?.trustState))}</div>
+      <div>trust reason: ${escapeHtml(status.sessionState?.trustReason || '—')}</div>
       <div>last login confirmed: ${escapeHtml(status.sessionState?.lastLoginConfirmedAt || '—')}</div>
       <div>last challenge: ${escapeHtml(status.sessionState?.lastChallengeAt || '—')}</div>
       <div>last successful action: ${escapeHtml(status.sessionState?.lastSuccessfulActionAt || '—')}</div>
+      <div>challenge acknowledged: ${escapeHtml(status.sessionState?.challengeAcknowledgedAt || '—')}</div>
+      <div>recovery acknowledged: ${escapeHtml(status.sessionState?.recoveryAcknowledgedAt || '—')}</div>
+      <div>revalidated: ${escapeHtml(status.sessionState?.revalidatedAt || '—')}</div>
     </div>
 
     <h2>SLO summary</h2>

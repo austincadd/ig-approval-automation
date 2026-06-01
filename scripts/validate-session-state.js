@@ -37,8 +37,9 @@ state = recordSessionLogout(db, { observedAt: '2026-05-28T12:15:00.000Z', reason
 assert.equal(state.sessionHealth, 'logged_out');
 assert.equal(state.quarantineState, 'quarantined');
 
-state = setSessionQuarantine(db, { observedAt: '2026-05-28T12:16:00.000Z', reason: 'manual_hold', sessionHealth: 'degraded' });
+state = setSessionQuarantine(db, { observedAt: '2026-05-28T12:16:00.000Z', reason: 'manual_hold', sessionHealth: 'degraded', trustState: 'pending_revalidation', trustReason: 'manual_hold' });
 assert.equal(state.sessionHealth, 'degraded');
 assert.equal(state.quarantineReason, 'manual_hold');
+assert.equal(state.trustState, 'pending_revalidation');
 
 console.log('Session state validation passed');
