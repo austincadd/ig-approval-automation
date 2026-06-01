@@ -39,6 +39,11 @@ ensureColumn('account_session_state', 'last_challenge_at', 'TEXT');
 ensureColumn('account_session_state', 'last_successful_action_at', 'TEXT');
 ensureColumn('account_session_state', 'quarantine_state', "TEXT NOT NULL DEFAULT 'clear'");
 ensureColumn('account_session_state', 'quarantine_reason', 'TEXT');
+ensureColumn('account_session_state', 'trust_state', "TEXT NOT NULL DEFAULT 'unknown'");
+ensureColumn('account_session_state', 'trust_reason', 'TEXT');
+ensureColumn('account_session_state', 'challenge_acknowledged_at', 'TEXT');
+ensureColumn('account_session_state', 'recovery_acknowledged_at', 'TEXT');
+ensureColumn('account_session_state', 'revalidated_at', 'TEXT');
 ensureColumn('account_session_state', 'last_observed_at', 'TEXT');
 ensureColumn('account_session_state', 'metadata_json', 'TEXT');
 db.prepare(`

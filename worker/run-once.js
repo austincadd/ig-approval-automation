@@ -16,6 +16,8 @@ import { classifyFailure, applyFailurePolicy } from '../core/failure-policy.js';
 import { createEvidenceBundle } from '../core/evidence-bundles.js';
 import { recordSessionChallenge, recordSessionLogout, recordSuccessfulAction, setSessionQuarantine } from '../core/session-state.js';
 import { getPolicyVersions } from '../core/policy-versions.js';
+import { getOperatorAutomationStatus } from '../core/automation-status.js';
+import { evaluateReadiness } from '../core/readiness.js';
 
 installTimestampedConsole();
 
@@ -388,6 +390,24 @@ export async function run({
           pauseAutomation(activeDb, { actor: 'worker', reason: canary.code || 'executor_canary_failed' });
         }
         console.error(`Executor canary failed before claim: ${canary.code || canary.reason || 'unknown'}`);
+        return;
+      }
+
+      const operatorStatus = getOperatorAutomationStatus(activeDb);
+      const readiness = evaluateReadiness(activeDb, operatorStatus);
+      if (!readiness.ok) {
+        logEvent(activeDb, {
+          level: readiness.state === 'unsafe' ? 'error' : 'warn',
+          eventType: 'worker_readiness_blocked',
+          payload: {
+            readiness,
+            policyVersions
+          }
+        });
+        if (readiness.state === 'unsafe') {
+          pauseAutomation(activeDb, { actor: 'worker', reason: 'worker_readiness_unsafe' });
+        }
+        console.error(`Worker readiness blocked before claim: ${readiness.state}`);
         return;
       }
 

@@ -61,7 +61,16 @@
     "validate:control-plane-seams": "node scripts/validate-control-plane-seams.js",
     "validate:operator-dashboard": "node scripts/validate-operator-dashboard.js",
     "validate:self-tests": "node scripts/validate-self-tests.js",
-    "validate:policy-versions": "node scripts/validate-policy-versions.js"
+    "validate:policy-versions": "node scripts/validate-policy-versions.js",
+    "validate:readiness": "node scripts/validate-readiness.js",
+    "validate:self-test-policy": "node scripts/validate-self-test-policy.js",
+    "validate:session-trust": "node scripts/validate-session-trust.js",
+    "validate:synthetic-checks": "node scripts/validate-synthetic-checks.js",
+    "validate:soak-report": "node scripts/validate-soak-report.js",
+    "validate:slo": "node scripts/validate-slo.js",
+    "validate:session-recovery": "node scripts/validate-session-recovery.js",
+    "validate:session-heuristics": "node scripts/validate-session-heuristics.js",
+    "report:soak": "node scripts/report-soak.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
