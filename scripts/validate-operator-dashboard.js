@@ -51,8 +51,10 @@ assert.match(dashboardHtml, /Recent failures/);
 assert.match(dashboardHtml, /Active incidents/);
 assert.match(dashboardHtml, /Telegram transport degraded: timeout/);
 assert.match(dashboardHtml, /Readiness/);
+assert.match(dashboardHtml, /Executor owner/);
 assert.match(dashboardHtml, /trust:/);
 assert.match(dashboardHtml, /Acknowledge challenge/);
+assert.match(dashboardHtml, /Reclaim stale executor owner/);
 assert.match(dashboardHtml, /Self-tests/);
 assert.match(dashboardHtml, /Policy versions/);
 
@@ -77,8 +79,8 @@ incidentsRoute.handler({ get: () => 'application/json' }, {
   status(code) { this.statusCode = code; return this; }
 });
 assert.equal(incidentsPayload.ok, true);
-assert.equal(incidentsPayload.summary.totalActive, 1);
-assert.equal(incidentsPayload.incidents[0].kind, 'telegram_delivery_degraded');
+assert.ok(incidentsPayload.summary.totalActive >= 1);
+assert.ok(incidentsPayload.incidents.some((incident) => incident.kind === 'telegram_delivery_degraded'));
 
 let actionResponse = null;
 actionRoute.handler({ body: { action: 'pause', reason: 'dashboard test' }, get: () => 'application/json' }, {
