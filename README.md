@@ -81,6 +81,7 @@ Read-only status surfaces:
 - Callback server JSON: `GET /automation/status`
 - Readiness JSON: `GET /automation/readiness` (control-plane auth required)
 - Soak/SLO JSON: `GET /automation/soak` (control-plane auth required)
+- Executor ownership JSON: `GET /automation/executor` (control-plane auth required)
 - Operator dashboard HTML: `GET /automation/dashboard`
 - Self-test JSON: `GET /automation/self-tests`
 - Incident JSON: `GET /automation/incidents` (control-plane auth required)

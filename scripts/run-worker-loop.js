@@ -5,6 +5,8 @@ import { spawn } from 'node:child_process';
 import { randomInt } from 'node:crypto';
 import 'dotenv/config';
 import { installTimestampedConsole } from './lib/timestamped-console.js';
+import { acquireExecutorOwner, heartbeatExecutorOwner, releaseExecutorOwner } from '../core/executor-ownership.js';
+import { recoverInterruptedRunningJobs } from '../core/executor-runtime.js';
 
 installTimestampedConsole();
 
@@ -18,7 +20,9 @@ const cooldownMaxMs = Math.max(cooldownMinMs, clampMs(process.env.WORKER_COOLDOW
 const pausedPollMs = clampMs(process.env.WORKER_PAUSED_POLL_MS, 60000);
 const idlePollMs = clampMs(process.env.WORKER_IDLE_POLL_MS, 60000);
 const wakePollMs = clampMs(process.env.WORKER_WAKE_POLL_MS, 1000);
+const workerHeartbeatMs = clampMs(process.env.WORKER_HEARTBEAT_MS, 30000);
 const disableFsWatch = ['1', 'true', 'yes'].includes(String(process.env.WORKER_DISABLE_FS_WATCH || '').toLowerCase());
+const workerOwnerKey = 'worker-loop';
 
 function clampMs(rawValue, fallback) {
   const value = Number(rawValue);
@@ -79,11 +83,8 @@ function waitForDbWakeOrTimeout(timeoutMs) {
 
     const timer = setTimeout(() => finish('timeout'), timeoutMs);
     const poller = setInterval(() => {
-      if (getWakeSnapshot() !== initialSnapshot) {
-        finish('db-change');
-      }
+      if (getWakeSnapshot() !== initialSnapshot) finish('db-change');
     }, Math.min(wakePollMs, timeoutMs));
-
     poller.unref?.();
 
     if (!disableFsWatch) {
@@ -106,11 +107,8 @@ async function waitForNextLoop({ timeoutMs, wakeOnDbChange = false }) {
     await sleep(timeoutMs);
     return 'timeout';
   }
-
   const reason = await waitForDbWakeOrTimeout(timeoutMs);
-  if (reason === 'db-change') {
-    console.log('Worker wake signal: database changed.');
-  }
+  if (reason === 'db-change') console.log('Worker wake signal: database changed.');
   return reason;
 }
 
@@ -146,24 +144,47 @@ function logStateTransition(previousState, nextState, queuedCount = 0) {
 
 async function loop() {
   let workerState = 'boot';
+  acquireExecutorOwner(db, {
+    ownerKey: workerOwnerKey,
+    mode: 'worker-loop',
+    pid: process.pid,
+    profileDir: '.browser-profile',
+    details: { script: 'run-worker-loop' }
+  });
 
-  while (true) {
-    if (!isAutomationEnabled()) {
-      workerState = logStateTransition(workerState, 'paused');
-      await waitForNextLoop({ timeoutMs: pausedPollMs, wakeOnDbChange: true });
-      continue;
+  const heartbeatTimer = setInterval(() => {
+    try { heartbeatExecutorOwner(db, { ownerKey: workerOwnerKey, details: { state: workerState } }); } catch {}
+  }, workerHeartbeatMs);
+  heartbeatTimer.unref?.();
+
+  const interrupted = recoverInterruptedRunningJobs(db, { actor: 'worker-loop', reason: 'loop_start_recovery' });
+  if (interrupted.recovered > 0) {
+    console.log(`Recovered ${interrupted.recovered} interrupted running job${interrupted.recovered === 1 ? '' : 's'}.`);
+  }
+
+  try {
+    while (true) {
+      if (!isAutomationEnabled()) {
+        workerState = logStateTransition(workerState, 'paused');
+        await waitForNextLoop({ timeoutMs: pausedPollMs, wakeOnDbChange: true });
+        continue;
+      }
+
+      const queuedCount = getQueuedJobCount();
+      if (queuedCount < 1) {
+        workerState = logStateTransition(workerState, 'idle');
+        await waitForNextLoop({ timeoutMs: idlePollMs, wakeOnDbChange: true });
+        continue;
+      }
+
+      workerState = logStateTransition(workerState, 'active', queuedCount);
+      heartbeatExecutorOwner(db, { ownerKey: workerOwnerKey, details: { state: workerState, queuedCount } });
+      await runWorkerOnce();
+      await waitForNextLoop({ timeoutMs: randomInt(cooldownMinMs, cooldownMaxMs + 1), wakeOnDbChange: true });
     }
-
-    const queuedCount = getQueuedJobCount();
-    if (queuedCount < 1) {
-      workerState = logStateTransition(workerState, 'idle');
-      await waitForNextLoop({ timeoutMs: idlePollMs, wakeOnDbChange: true });
-      continue;
-    }
-
-    workerState = logStateTransition(workerState, 'active', queuedCount);
-    await runWorkerOnce();
-    await waitForNextLoop({ timeoutMs: randomInt(cooldownMinMs, cooldownMaxMs + 1), wakeOnDbChange: true });
+  } finally {
+    clearInterval(heartbeatTimer);
+    releaseExecutorOwner(db, { ownerKey: workerOwnerKey });
   }
 }
 
