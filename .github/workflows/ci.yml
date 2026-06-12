@@ -38,3 +38,5 @@ jobs:
           npm run validate:operator-dashboard
           npm run validate:self-tests
           npm run validate:control-plane-seams
+          npm run validate:operator-control-registration
+          npm run validate:operator-control-behavior

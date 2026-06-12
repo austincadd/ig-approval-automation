@@ -171,3 +171,44 @@ export function setSessionQuarantine(db, input = {}) {
     metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined
   });
 }
+
+export function acknowledgeSessionChallenge(db, input = {}) {
+  const observedAt = input.observedAt || new Date().toISOString();
+  return updateSessionRow(db, input.accountKey || 'primary', {
+    challengeAcknowledgedAt: observedAt,
+    quarantineState: input.quarantineState || 'quarantined',
+    quarantineReason: input.reason || 'challenge_acknowledged',
+    trustState: input.trustState || 'pending_revalidation',
+    trustReason: input.reason || 'challenge_acknowledged',
+    lastObservedAt: observedAt,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined
+  });
+}
+
+export function acknowledgeSessionRecovery(db, input = {}) {
+  const observedAt = input.observedAt || new Date().toISOString();
+  return updateSessionRow(db, input.accountKey || 'primary', {
+    recoveryAcknowledgedAt: observedAt,
+    quarantineState: input.quarantineState || 'quarantined',
+    quarantineReason: input.reason || 'recovery_acknowledged',
+    trustState: input.trustState || 'pending_revalidation',
+    trustReason: input.reason || 'recovery_acknowledged',
+    lastObservedAt: observedAt,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined
+  });
+}
+
+export function markSessionRevalidated(db, input = {}) {
+  const observedAt = input.observedAt || new Date().toISOString();
+  return updateSessionRow(db, input.accountKey || 'primary', {
+    sessionHealth: input.sessionHealth || 'ok',
+    quarantineState: input.quarantineState || 'clear',
+    quarantineReason: input.reason || null,
+    trustState: input.trustState || 'trusted',
+    trustReason: input.reason || 'manual_revalidation',
+    revalidatedAt: observedAt,
+    lastLoginConfirmedAt: input.lastLoginConfirmedAt,
+    lastObservedAt: observedAt,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined
+  });
+}
