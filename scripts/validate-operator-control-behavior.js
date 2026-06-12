@@ -5,6 +5,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { registerOperatorTelegramCommands } from '../bot/operator-telegram-commands.js';
 import { registerOperatorHttpRoutes } from '../bot/operator-http-routes.js';
+import { readAccountSessionState } from '../core/session-state.js';
 
 const schema = fs.readFileSync(path.resolve('db/schema.sql'), 'utf8');
 const db = new Database(':memory:');
@@ -22,6 +23,11 @@ insertCandidate.run('https://instagram.com/p/approved');
 insertApproval.run(1, 'approved');
 insertApproval.run(2, 'approved');
 insertJob.run(1, 'queued', null, null, null, null);
+
+db.prepare(`
+  INSERT INTO executor_owners(owner_key, mode, pid, profile_dir, state, started_at, heartbeat_at, details_json, updated_at)
+  VALUES ('browser-profile', 'worker', 999999, '.browser-profile', 'active', datetime('now','-10 minutes'), datetime('now','-10 minutes'), json('{}'), datetime('now'))
+`).run();
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ig-operator-control-'));
 const lockPath = path.join(tempDir, 'telegram-bot.lock');
@@ -124,12 +130,25 @@ function createRes() {
   return {
     statusCode: 200,
     body: undefined,
+    redirectedTo: null,
     status(code) {
       this.statusCode = code;
       return this;
     },
     json(payload) {
       this.body = payload;
+      return this;
+    },
+    type(_contentType) {
+      return this;
+    },
+    send(payload) {
+      this.body = payload;
+      return this;
+    },
+    redirect(code, location) {
+      this.statusCode = code;
+      this.redirectedTo = location;
       return this;
     }
   };
@@ -148,24 +167,88 @@ assert.equal(reviewBatchCalls, 1, 'authorized review push should run sendReviewB
 assert.equal(res.statusCode, 200);
 assert.deepEqual(res.body, { ok: true, sent: 2, skipped: 1 });
 
+for (const [method, routePath] of [
+  ['GET', '/automation/status'],
+  ['GET', '/automation/metrics'],
+  ['GET', '/debug/queue'],
+  ['GET', '/automation/executor']
+]) {
+  res = createRes();
+  await getRoute(method, routePath)({ authorized: false, query: {} }, res);
+  assert.equal(res.statusCode, 403, `${method} ${routePath} should require auth`);
+}
+assert.equal(rejectCalls, 5, 'sensitive operator routes should reject unauthorized access');
+
 res = createRes();
-getRoute('GET', '/automation/status')({}, res);
+await getRoute('GET', '/automation/status')({ authorized: true, query: {} }, res);
 assert.equal(res.statusCode, 200);
 assert.equal(res.body.ok, true);
 assert.equal(res.body.status.counts.queued, 1);
 
 res = createRes();
-getRoute('GET', '/automation/metrics')({ query: { days: '30' } }, res);
+await getRoute('GET', '/automation/metrics')({ authorized: true, query: { days: '30' } }, res);
 assert.equal(res.statusCode, 200);
 assert.equal(res.body.ok, true);
 assert.ok(res.body.metrics.summary);
 
 res = createRes();
-getRoute('GET', '/debug/queue')({}, res);
+await getRoute('GET', '/debug/queue')({ authorized: true, query: {} }, res);
 assert.equal(res.statusCode, 200);
 assert.equal(res.body.ok, true);
 assert.equal(res.body.queued.length, 1, 'debug queue should include queued jobs');
 assert.equal(res.body.queued[0].candidate_id, 1);
 assert.equal(res.body.recentApprovals.length, 2, 'debug queue should include recent approvals');
+
+res = createRes();
+await getRoute('GET', '/automation/executor')({ authorized: true, query: {} }, res);
+assert.equal(res.statusCode, 200);
+assert.equal(res.body.ok, true);
+assert.equal(res.body.executorOwner.reclaimable, true);
+
+res = createRes();
+await getRoute('POST', '/automation/action')({
+  authorized: true,
+  body: { action: 'ack_session_challenge', reason: 'operator acknowledged' },
+  get: () => 'application/json'
+}, res);
+assert.equal(res.statusCode, 200);
+assert.equal(res.body.ok, true);
+let sessionState = readAccountSessionState(db);
+assert.equal(sessionState.challengeAcknowledgedAt !== null, true);
+assert.equal(sessionState.quarantineReason, 'operator acknowledged');
+
+res = createRes();
+await getRoute('POST', '/automation/action')({
+  authorized: true,
+  body: { action: 'ack_session_recovery', reason: 'working on login restore' },
+  get: () => 'application/json'
+}, res);
+assert.equal(res.statusCode, 200);
+assert.equal(res.body.ok, true);
+sessionState = readAccountSessionState(db);
+assert.equal(sessionState.recoveryAcknowledgedAt !== null, true);
+assert.equal(sessionState.quarantineReason, 'working on login restore');
+
+res = createRes();
+await getRoute('POST', '/automation/action')({
+  authorized: true,
+  body: { action: 'mark_session_revalidated', reason: 'manual verification complete' },
+  get: () => 'application/json'
+}, res);
+assert.equal(res.statusCode, 200);
+assert.equal(res.body.ok, true);
+sessionState = readAccountSessionState(db);
+assert.equal(sessionState.revalidatedAt !== null, true);
+assert.equal(sessionState.sessionHealth, 'ok');
+
+res = createRes();
+await getRoute('POST', '/automation/action')({
+  authorized: true,
+  body: { action: 'reclaim_executor_owner' },
+  get: () => 'application/json'
+}, res);
+assert.equal(res.statusCode, 200);
+assert.equal(res.body.ok, true);
+assert.equal(res.body.result.ok, true);
 
 console.log('Operator control behavior validation passed');

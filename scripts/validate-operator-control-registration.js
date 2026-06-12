@@ -52,6 +52,17 @@ assert.deepEqual(
   [
     { method: 'POST', path: '/review/push' },
     { method: 'GET', path: '/automation/status' },
+    { method: 'GET', path: '/automation/readiness' },
+    { method: 'GET', path: '/automation/executor' },
+    { method: 'GET', path: '/automation/soak' },
+    { method: 'GET', path: '/automation/incidents' },
+    { method: 'GET', path: '/automation/dashboard' },
+    { method: 'POST', path: '/automation/action' },
+    { method: 'GET', path: '/automation/self-tests' },
+    { method: 'POST', path: '/automation/self-tests/run' },
+    { method: 'POST', path: '/automation/remediation/run' },
+    { method: 'POST', path: '/automation/incidents/:incidentKey/suppress' },
+    { method: 'POST', path: '/automation/incidents/:incidentKey/resolve' },
     { method: 'GET', path: '/automation/metrics' },
     { method: 'GET', path: '/debug/queue' }
   ],

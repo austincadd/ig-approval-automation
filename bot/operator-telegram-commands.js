@@ -6,13 +6,17 @@ import {
 } from '../core/recovery.js';
 import { formatOperatorAutomationStatus, getOperatorAutomationStatus } from '../core/automation-status.js';
 import { formatRecoverySummary } from './recovery-command-format.js';
+import { acknowledgeSessionChallenge, acknowledgeSessionRecovery, markSessionRevalidated } from '../core/session-state.js';
 
 export const OPERATOR_TELEGRAM_COMMAND_PATTERNS = {
   automationStatus: /\/automation_status/,
   pauseAutomation: /\/pause_automation(?:\s+(.+))?/,
   resumeAutomation: /\/resume_automation(?:\s+(.+))?/,
   requeueBlocked: /\/requeue_blocked(?:\s+(.+))?/,
-  reconcileQueue: /\/reconcile_queue(?:\s+(.+))?/
+  reconcileQueue: /\/reconcile_queue(?:\s+(.+))?/,
+  ackSessionChallenge: /\/ack_session_challenge(?:\s+(.+))?/,
+  ackSessionRecovery: /\/ack_session_recovery(?:\s+(.+))?/,
+  markSessionRevalidated: /\/mark_session_revalidated(?:\s+(.+))?/
 };
 
 function getActorLabel(msg) {

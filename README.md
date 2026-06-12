@@ -78,13 +78,15 @@ Phase 5 additions:
 
 Read-only status surfaces:
 - Telegram: `/automation_status`
-- Callback server JSON: `GET /automation/status`
+- Callback server JSON: `GET /automation/status` (control-plane auth required)
+- Reliability metrics JSON: `GET /automation/metrics` (control-plane auth required)
 - Readiness JSON: `GET /automation/readiness` (control-plane auth required)
 - Soak/SLO JSON: `GET /automation/soak` (control-plane auth required)
 - Executor ownership JSON: `GET /automation/executor` (control-plane auth required)
 - Operator dashboard HTML: `GET /automation/dashboard`
 - Self-test JSON: `GET /automation/self-tests`
 - Incident JSON: `GET /automation/incidents` (control-plane auth required)
+- Debug queue JSON: `GET /debug/queue` (control-plane auth required)
 - MCP: `automation_status`
 
 ## Validation
@@ -100,6 +102,8 @@ npm run validate:automation-status
 npm run validate:operator-dashboard
 npm run validate:self-tests
 npm run validate:control-plane-seams
+npm run validate:operator-control-registration
+npm run validate:operator-control-behavior
 ```
 
 ## Incidents
@@ -175,13 +179,3 @@ Notes about worker behavior:
 - System auto-pauses on checkpoint/challenge markers.
 - Recovery requeues create fresh queued jobs; blocked job history is preserved.
 - `/resume_automation` only flips the DB flag back on; the persistent LaunchAgent is what keeps the local worker running between sessions.
- is what keeps the local worker running between sessions.
- worker running between sessions.
-ntional policy between already-queued jobs. Fresh DB writes can wake the worker early, but a backlog that was already present still drains at the configured cooldown pace.
-
-## Notes
-- Use burner/test account only.
-- System auto-pauses on checkpoint/challenge markers.
-- Recovery requeues create fresh queued jobs; blocked job history is preserved.
-- `/resume_automation` only flips the DB flag back on; the persistent LaunchAgent is what keeps the local worker running between sessions.
- is what keeps the local worker running between sessions.

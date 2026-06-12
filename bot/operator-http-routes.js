@@ -5,6 +5,8 @@ import { listActiveIncidents, getIncidentSummary, suppressIncident, resolveIncid
 import { evaluateAutoRemediation } from '../core/auto-remediation.js';
 import { pauseAutomation, reconcileApprovedQueue, requeueBlockedJobs, resumeAutomation, suppressRecoveryCandidate } from '../core/recovery.js';
 import { runSelfTests } from '../core/self-tests.js';
+import { acknowledgeSessionChallenge, acknowledgeSessionRecovery, markSessionRevalidated } from '../core/session-state.js';
+import { evaluateExecutorOwner, reclaimExecutorOwner } from '../core/executor-ownership.js';
 
 function readActionInput(req) {
   return {
@@ -73,7 +75,8 @@ export function registerOperatorHttpRoutes({
     res.json({ ok: true, ...result });
   });
 
-  app.get('/automation/status', (_req, res) => {
+  app.get('/automation/status', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
     const status = getOperatorAutomationStatus(db);
     res.json({ ok: true, status });
   });
@@ -166,11 +169,13 @@ export function registerOperatorHttpRoutes({
   });
 
   app.get('/automation/metrics', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
     const days = Math.max(1, Math.trunc(Number(req.query?.days) || 7));
     res.json({ ok: true, metrics: getReliabilityMetrics(db, { days }) });
   });
 
-  app.get('/debug/queue', (_req, res) => {
+  app.get('/debug/queue', (req, res) => {
+    if (!isAuthorizedControlRequest(req)) return rejectUnauthorizedControlRequest(req, res);
     const queued = db.prepare(`
       SELECT lj.id, lj.candidate_id, lj.status, c.post_url, lj.created_at
       FROM like_jobs lj
